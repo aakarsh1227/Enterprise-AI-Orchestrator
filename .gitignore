@@ -2,5 +2,7 @@
 venv/
 __pycache__/
 *.pyc
-db.sqlite3
-checkpoints.db
+*.db
+*.db-shm
+*.db-wal
+

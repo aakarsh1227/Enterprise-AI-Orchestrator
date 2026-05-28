@@ -16,9 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from agents.views import chat_view
+from agents.views import chat_view, task_history_view, task_stats_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', chat_view, name='chat'),
+    path('api/tasks/history/', task_history_view, name='task_history'),
+    path('api/tasks/stats/', task_stats_view, name='task_stats'),
 ]
