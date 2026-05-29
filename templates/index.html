@@ -25,6 +25,23 @@
         .scrollbar-thin::-webkit-scrollbar-track { background: #374151; border-radius: 3px; }
         .scrollbar-thin::-webkit-scrollbar-thumb { background: #6B7280; border-radius: 3px; }
         .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+        .connection-status {
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .connection-status.connected {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        .connection-status.disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .connection-status.connecting {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen">
@@ -40,6 +57,20 @@
                         <h1 class="font-bold text-lg">AI Orchestrator</h1>
                         <p class="text-xs text-gray-500">Powered by Qwen 2.5</p>
                     </div>
+                </div>
+            </div>
+            
+            <!-- Connection Status -->
+            <div class="px-4 py-2 border-b border-gray-800">
+                <div class="flex items-center gap-2">
+                    <span id="ws-status" class="connection-status disconnected">
+                        <i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i>
+                        DISCONNECTED
+                    </span>
+                    <span id="redis-status" class="connection-status disconnected">
+                        <i class="fas fa-database mr-1" style="font-size: 0.5rem;"></i>
+                        REDIS OFF
+                    </span>
                 </div>
             </div>
             
@@ -79,6 +110,9 @@
                     <button onclick="showTaskHistory()" class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm text-gray-300 transition-colors">
                         <i class="fas fa-history mr-2 text-gray-500"></i>View Task History
                     </button>
+                    <button onclick="testRedis()" class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm text-gray-300 transition-colors">
+                        <i class="fas fa-sync mr-2 text-gray-500"></i>Test Redis
+                    </button>
                 </div>
             </div>
 
@@ -86,9 +120,12 @@
             
             <!-- Model Info -->
             <div class="p-4 border-t border-gray-800">
-                <div class="flex items-center gap-2 text-xs text-gray-500">
-                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Model: Qwen2.5-7B</span>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span>Model: Qwen2.5-7B</span>
+                    </div>
+                    <span id="prompt-count" class="text-xs text-gray-600">0 prompts</span>
                 </div>
             </div>
         </aside>
@@ -105,6 +142,9 @@
                         <i class="fas fa-robot text-white text-sm"></i>
                     </div>
                     <h1 class="font-bold">AI Orchestrator</h1>
+                    <span id="ws-status-mobile" class="connection-status disconnected ml-auto">
+                        <i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i>
+                    </span>
                 </div>
             </header>
 
@@ -182,6 +222,21 @@
         </div>
     </div>
 
+    <!-- Prompt State Modal -->
+    <div id="prompt-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden border border-gray-700">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                <h2 class="text-lg font-bold">Prompt State Inspector</h2>
+                <button onclick="closePromptModal()" class="p-2 hover:bg-gray-800 rounded-lg">
+                    <i class="fas fa-times text-gray-400"></i>
+                </button>
+            </div>
+            <div id="prompt-content" class="p-4 overflow-y-auto max-h-[60vh]">
+                <pre id="prompt-json" class="text-xs text-gray-300 bg-gray-800 p-4 rounded-lg overflow-x-auto"></pre>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 border border-gray-700 rounded-xl p-4 hidden z-50 shadow-xl">
         <div class="flex items-center gap-3">
@@ -192,6 +247,78 @@
 
     <script>
     let lastUserMessage = '';
+    let currentPromptId = null;
+    let ws = null;
+    let promptCount = 0;
+
+    function connectWebSocket() {
+        const wsStatus = document.getElementById('ws-status');
+        wsStatus.className = 'connection-status connecting';
+        wsStatus.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i> CONNECTING...';
+        
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/agent/`);
+            
+            ws.onopen = () => {
+                const wsStatus = document.getElementById('ws-status');
+                wsStatus.className = 'connection-status connected';
+                wsStatus.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i> CONNECTED';
+                const mobileStatus = document.getElementById('ws-status-mobile');
+                if (mobileStatus) {
+                    mobileStatus.className = 'connection-status connected ml-auto';
+                    mobileStatus.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i>';
+                }
+                showToast('success', 'WebSocket connected');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+            
+            ws.onclose = () => {
+                const wsStatus = document.getElementById('ws-status');
+                wsStatus.className = 'connection-status disconnected';
+                wsStatus.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i> DISCONNECTED';
+                const mobileStatus = document.getElementById('ws-status-mobile');
+                if (mobileStatus) {
+                    mobileStatus.className = 'connection-status disconnected ml-auto';
+                    mobileStatus.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 0.5rem;"></i>';
+                }
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            ws.onerror = (error) => {
+                showToast('error', 'WebSocket error');
+            };
+        } catch (e) {
+            setTimeout(connectWebSocket, 5000);
+        }
+    }
+
+    function handleWebSocketMessage(data) {
+        if (data.type === 'state_update') {
+            const state = data.state;
+            if (state.status === 'PROCESSING') {
+                updateTypingIndicator(true);
+            } else if (state.response) {
+                updateTypingIndicator(false);
+                addMessageToChat(state.response, false);
+            }
+        } else if (data.type === 'stream') {
+            appendToLastMessage(data.chunk);
+        } else if (data.type === 'response') {
+            updateTypingIndicator(false);
+            addMessageToChat(data.response, false);
+            if (data.is_pending) {
+                document.getElementById('approval-container').classList.remove('hidden');
+            } else {
+                document.getElementById('approval-container').classList.add('hidden');
+            }
+            loadStats();
+        }
+    }
 
     async function sendMessage(e, action = null) {
         const input = document.getElementById('user-input');
@@ -203,8 +330,12 @@
 
         if (!action) {
             lastUserMessage = message;
+            currentPromptId = generateUUID();
+            promptCount++;
+            document.getElementById('prompt-count').textContent = `${promptCount} prompts`;
+            
             box.innerHTML += `
-                <div class="flex gap-3 justify-end">
+                <div class="flex gap-3 justify-end prompt-start" data-prompt-id="${currentPromptId}">
                     <div class="bg-blue-600 rounded-2xl rounded-tr-none px-4 py-3 max-w-xl">
                         <p class="text-sm">${escapeHtml(message)}</p>
                     </div>
@@ -218,20 +349,7 @@
         sendBtn.disabled = true;
         sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'flex gap-3';
-        typingDiv.id = 'typing-indicator';
-        typingDiv.innerHTML = `
-            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <i class="fas fa-robot text-white text-sm"></i>
-            </div>
-            <div class="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3">
-                <div class="typing-indicator flex gap-1">
-                    <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
-                    <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
-                    <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
-                </div>
-            </div>`;
+        const typingDiv = createTypingIndicator();
         box.appendChild(typingDiv);
         box.scrollTop = box.scrollHeight;
 
@@ -242,25 +360,31 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
-                body: JSON.stringify({ message: message, action: action })
+                body: JSON.stringify({ 
+                    message: message, 
+                    action: action,
+                    prompt_id: currentPromptId
+                })
             });
             
             const data = await response.json();
             
             typingDiv.remove();
             
-            box.innerHTML += `
-                <div class="flex gap-3">
-                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-robot text-white text-sm"></i>
-                    </div>
-                    <div class="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3 max-w-xl">
-                        <p class="text-sm whitespace-pre-wrap">${escapeHtml(data.response)}</p>
-                    </div>
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex gap-3';
+            messageDiv.innerHTML = `
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-robot text-white text-sm"></i>
+                </div>
+                <div class="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3 max-w-xl">
+                    <p class="text-sm whitespace-pre-wrap">${escapeHtml(data.response)}</p>
                 </div>`;
+            box.appendChild(messageDiv);
             
             if (data.is_pending) {
                 document.getElementById('approval-container').classList.remove('hidden');
+                currentPromptId = data.prompt_id;
             } else {
                 document.getElementById('approval-container').classList.add('hidden');
             }
@@ -274,6 +398,96 @@
 
         sendBtn.disabled = false;
         sendBtn.innerHTML = '<span>Send</span><i class="fas fa-paper-plane text-sm ml-1"></i>';
+    }
+
+    function createTypingIndicator() {
+        const div = document.createElement('div');
+        div.className = 'flex gap-3 typing-msg';
+        div.innerHTML = `
+            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-robot text-white text-sm"></i>
+            </div>
+            <div class="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3">
+                <div class="typing-indicator flex gap-1">
+                    <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                    <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                    <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                </div>
+            </div>`;
+        return div;
+    }
+
+    function updateTypingIndicator(show) {
+        const existing = document.querySelector('.typing-msg');
+        if (show && !existing) {
+            const box = document.getElementById('chat-box');
+            box.appendChild(createTypingIndicator());
+        } else if (!show && existing) {
+            existing.remove();
+        }
+    }
+
+    function appendToLastMessage(chunk) {
+        const messages = document.querySelectorAll('.bg-gray-800.rounded-2xl');
+        if (messages.length > 0) {
+            const lastMsg = messages[messages.length - 1];
+            const p = lastMsg.querySelector('p');
+            if (p) {
+                p.textContent += chunk;
+            }
+        }
+    }
+
+    function addMessageToChat(response, isUser) {
+        const box = document.getElementById('chat-box');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex gap-3 ${isUser ? 'justify-end' : ''}`;
+        
+        if (isUser) {
+            messageDiv.innerHTML = `
+                <div class="bg-blue-600 rounded-2xl rounded-tr-none px-4 py-3 max-w-xl">
+                    <p class="text-sm">${escapeHtml(response)}</p>
+                </div>
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user text-white text-sm"></i>
+                </div>`;
+        } else {
+            messageDiv.innerHTML = `
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-robot text-white text-sm"></i>
+                </div>
+                <div class="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3 max-w-xl">
+                    <p class="text-sm whitespace-pre-wrap">${escapeHtml(response)}</p>
+                </div>`;
+        }
+        
+        box.appendChild(messageDiv);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function testRedis() {
+        try {
+            const response = await fetch('/api/tasks/stats/');
+            if (response.ok) {
+                document.getElementById('redis-status').className = 'connection-status connected';
+                document.getElementById('redis-status').innerHTML = '<i class="fas fa-database mr-1" style="font-size: 0.5rem;"></i> REDIS OK';
+                showToast('success', 'Redis connection working');
+            } else {
+                throw new Error('Stats endpoint failed');
+            }
+        } catch (e) {
+            document.getElementById('redis-status').className = 'connection-status disconnected';
+            document.getElementById('redis-status').innerHTML = '<i class="fas fa-database mr-1" style="font-size: 0.5rem;"></i> REDIS OFF';
+            showToast('error', 'Redis connection failed');
+        }
+    }
+
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     }
 
     function escapeHtml(text) {
@@ -292,6 +506,8 @@
                     <p class="text-sm">Chat cleared. How can I help you?</p>
                 </div>
             </div>`;
+        promptCount = 0;
+        document.getElementById('prompt-count').textContent = '0 prompts';
         showToast('success', 'Chat cleared');
     }
 
@@ -350,6 +566,10 @@
         document.getElementById('history-modal').classList.add('hidden');
     }
 
+    function closePromptModal() {
+        document.getElementById('prompt-modal').classList.add('hidden');
+    }
+
     function toggleSidebar() {
         document.getElementById('sidebar').classList.toggle('hidden');
     }
@@ -377,6 +597,7 @@
         if (e.target.id === 'history-modal') closeModal();
     });
 
+    connectWebSocket();
     loadStats();
     </script>
 </body>

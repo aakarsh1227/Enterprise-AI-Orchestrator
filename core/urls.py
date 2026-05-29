@@ -16,11 +16,19 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from agents.views import chat_view, task_history_view, task_stats_view
+from agents.views import (
+    chat_view, 
+    task_history_view, 
+    task_stats_view,
+    get_prompt_state_view,
+    get_prompt_stream_view
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', chat_view, name='chat'),
     path('api/tasks/history/', task_history_view, name='task_history'),
     path('api/tasks/stats/', task_stats_view, name='task_stats'),
+    path('api/prompt/<str:prompt_id>/state/', get_prompt_state_view, name='prompt_state'),
+    path('api/prompt/<str:prompt_id>/stream/', get_prompt_stream_view, name='prompt_stream'),
 ]
