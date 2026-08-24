@@ -154,7 +154,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CSRF Settings for Docker
 ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = 
+
+# 2. CSRF TRUSTED ORIGINS
+CSRF_TRUSTED_ORIGINS = [
     'https://enterprise-ai-orchestrator-production.up.railway.app',
     'https://*.up.railway.app',
     'http://localhost:8000',
@@ -183,7 +185,7 @@ LOGGING = {
         'level': 'INFO',
     },
 }
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
 
 CHANNEL_LAYERS = {
     "default": {

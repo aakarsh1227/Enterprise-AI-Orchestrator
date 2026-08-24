@@ -8,14 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
 RUN pip install daphne==4.1.2
-
-RUN touch checkpoints.db
 
 COPY . .
 
-RUN python manage.py migrate --noinput
+RUN touch checkpoints.db
 
 EXPOSE 8000
 
