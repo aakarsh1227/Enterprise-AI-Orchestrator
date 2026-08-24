@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,9 +16,9 @@ SECRET_KEY = os.getenv(
     'django-insecure-ub^1qejk&+fy#bi#ujauxeb--44v8dam99err3_55c%iyzg8#1',
 )
 
-DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+DEBUG = False
 
-# Allow all domains / Railway public URL
+# Allow all hosts & Railway domain
 ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
@@ -31,7 +30,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Applications
 INSTALLED_APPS = [
-    "daphne",  # ASGI must be first
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
