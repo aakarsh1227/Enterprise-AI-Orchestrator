@@ -26,27 +26,38 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ub^1qejk&+fy#bi#ujauxeb--44v8dam99err3_55c%iyzg8#1'
+SECRET_KEY = os.getenv(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-ub^1qejk&+fy#bi#ujauxeb--44v8dam99err3_55c%iyzg8#1',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'web', '0.0.0.0']
-
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    'web',
+    'enterprise-ai-orchestrator-production.up.railway.app',
+    '.railway.app',
+    '*',  # Or use os.getenv('ALLOWED_HOSTS', '*').split(',')
+]
 
 # Application definition
 
 # core/settings.py
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'channels',
-    'agents',
+    "daphne",  # MUST BE FIRST
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "channels",
+    "agents",
 ]
 
 MIDDLEWARE = [
@@ -142,9 +153,21 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CSRF Settings for Docker
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
+CSRF_TRUSTED_ORIGINS = [
+    'https://enterprise-ai-orchestrator-production.up.railway.app',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+# LoggingREDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-# Logging
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
+    },
+}
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
