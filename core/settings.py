@@ -10,15 +10,14 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Security
 SECRET_KEY = os.getenv(
     'DJANGO_SECRET_KEY',
-    'django-insecure-ub^1qejk&+fy#bi#ujauxeb--44v8dam99err3_55c%iyzg8#1',
+    'django-insecure-enterprise-ai-orchestrator-key-123456789',
 )
 
 DEBUG = False
 
-# Allow all hosts & Railway domain
+# Allow all hosts and the Railway domain
 ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
@@ -28,7 +27,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
 ]
 
-# Applications
 INSTALLED_APPS = [
     "daphne",
     "django.contrib.admin",
@@ -72,7 +70,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 ASGI_APPLICATION = 'core.asgi.application'
 
-# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -92,7 +89,6 @@ CHANNEL_LAYERS = {
     },
 }
 
-# Passwords
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -100,17 +96,14 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
 STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Logging
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
