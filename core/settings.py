@@ -17,8 +17,7 @@ SECRET_KEY = os.getenv(
 
 DEBUG = False
 
-# Allow all hosts and the Railway domain
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 CSRF_TRUSTED_ORIGINS = [
     'https://enterprise-ai-orchestrator-production.up.railway.app',
